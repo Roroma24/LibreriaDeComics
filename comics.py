@@ -8,7 +8,7 @@ def conectar_db():
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="Ror@$2405",  # Cambia si tienes contraseña
+            password="Ror@$2405",  
             database="sistema_libreria"
         )
         return conn
@@ -28,7 +28,7 @@ def verificar_login():
         user = cursor.fetchone()
 
         if user:
-            root.destroy()  # Cierra la ventana de login
+            root.destroy() 
             if user['rol'] == 'administrador':
                 ventana_admin(user['username'])
             else:
