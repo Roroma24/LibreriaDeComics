@@ -9,7 +9,7 @@ def conectar_db():
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="Saltamontes71#",  # Cambia si tienes contraseña
+            password="Ror@$2405",  # Cambia si tienes contraseña
             database="sistema_libreria"
         )
         return conn
@@ -78,10 +78,6 @@ def confirmar_cerrar_sesion(ventana):
         ventana.destroy()
         mostrar_login()
 
-def volver_al_login(admin):
-    admin.destroy()  # Cierra la ventana actual de administrador
-    mostrar_login()  # Vuelve a mostrar la ventana de login
-
 def mostrar_login():
     global root, entry_usuario, entry_password
     root = tk.Tk()
@@ -121,7 +117,7 @@ def venta_producto(usuario):
     productos_frame.pack()
 
     # Mostrar libros
-    cursor.execute("SELECT producto.id_producto, libro.título AS nombre, libro.precio FROM producto JOIN libro ON producto.id_libro = libro.id_libro")
+    cursor.execute("SELECT producto.id_producto, libro.titulo AS nombre, libro.precio FROM producto JOIN libro ON producto.id_libro = libro.id_libro")
     libros = cursor.fetchall()
 
     # Mostrar revistas
@@ -216,7 +212,7 @@ def consultar_inventario():
 
     cursor.execute("""
         SELECT producto.id_producto,
-               COALESCE(libro.título, revista.titulo) AS nombre,
+               COALESCE(libro.titulo, revista.titulo) AS nombre,
                COALESCE(libro.precio, revista.precio) AS precio,
                inventario.stock
         FROM producto
