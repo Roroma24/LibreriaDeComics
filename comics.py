@@ -133,7 +133,7 @@ def venta_producto(usuario):
     # Crear ComboBox para productos
     productos_nombres = [f"{prod['nombre']} - ${prod['precio']:.2f}" for prod in lista_productos]
     tk.Label(venta, text="Selecciona el producto:").pack(pady=5)
-    combobox_productos = ttk.Combobox(venta, values=productos_nombres)
+    combobox_productos = ttk.Combobox(venta, values=productos_nombres, width=50)
     combobox_productos.pack()
 
     # Crear ComboBox para seleccionar la cantidad (1-10)
