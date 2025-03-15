@@ -57,7 +57,7 @@ def mostrar_login():
 
     root.mainloop()
 
-# ---------------- VENTANA DE VENTA/COMPRA (CON VISUALIZACIÓN DE IMAGEN) ----------------
+# ---------------- VENTANA DE VENTA/COMPRA (CON INFO, IMAGEN, EDITORIAL) ----------------
 def venta_producto(usuario):
     conn = conectar_db()
     if not conn:
@@ -67,29 +67,39 @@ def venta_producto(usuario):
     # Creamos una ventana secundaria para la venta/compra
     venta = tk.Toplevel()
     venta.title("Venta de Productos")
-    venta.geometry("600x500")
+    venta.geometry("600x550")
 
     tk.Label(venta, text=f"Usuario: {usuario}", font=("Arial", 12)).pack(pady=5)
 
-    # Consultar libros (incluyendo la ruta de la imagen)
+    # Consultar libros (incluyendo ruta de la imagen, otros detalles y editorial)
     cursor.execute("""
         SELECT producto.id_producto, 
                libro.titulo AS nombre, 
                libro.precio, 
-               libro.imagen 
+               libro.imagen,
+               libro.ISBN,
+               libro.año_publicacion,
+               editorial.nombre AS editorial,
+               'libro' AS tipo
         FROM producto 
         JOIN libro ON producto.id_libro = libro.id_libro
+        JOIN editorial ON libro.id_editorial = editorial.id_editorial
     """)
     libros = cursor.fetchall()
 
-    # Consultar revistas (incluyendo la ruta de la imagen)
+    # Consultar revistas (incluyendo ruta de la imagen, otros detalles y editorial)
     cursor.execute("""
         SELECT producto.id_producto, 
                revista.titulo AS nombre, 
                revista.precio, 
-               revista.imagen 
+               revista.imagen,
+               revista.ISSN,
+               revista.periodicidad,
+               editorial.nombre AS editorial,
+               'revista' AS tipo
         FROM producto 
         JOIN revista ON producto.id_revista = revista.id_revista
+        JOIN editorial ON revista.id_editorial = editorial.id_editorial
     """)
     revistas = cursor.fetchall()
 
@@ -109,15 +119,38 @@ def venta_producto(usuario):
     label_img = tk.Label(venta)
     label_img.pack(pady=10)
 
+    # Label para mostrar la información adicional del producto
+    label_info = tk.Label(venta, text="", justify="left", font=("Arial", 10))
+    label_info.pack(pady=5)
+
     def on_seleccionar_producto(event):
         indice = combobox_productos.current()
         if indice < 0 or indice >= len(lista_productos):
             return
-        ruta_imagen = lista_productos[indice].get("imagen", "")
+
+        producto = lista_productos[indice]
+        ruta_imagen = producto.get("imagen", "")
+        # Actualizar la información extra del producto, incluyendo la editorial
+        if producto["tipo"] == "libro":
+            info_text = (
+                f"ISBN: {producto.get('ISBN', 'N/D')}\n"
+                f"Año de publicación: {producto.get('año_publicacion', 'N/D')}\n"
+                f"Editorial: {producto.get('editorial', 'N/D')}"
+            )
+        elif producto["tipo"] == "revista":
+            info_text = (
+                f"ISSN: {producto.get('ISSN', 'N/D')}\n"
+                f"Periodicidad: {producto.get('periodicidad', 'N/D')}\n"
+                f"Editorial: {producto.get('editorial', 'N/D')}"
+            )
+        else:
+            info_text = ""
+        label_info.config(text=info_text)
+
+        # Mostrar la imagen si la ruta existe
         if ruta_imagen:
             try:
                 img = Image.open(ruta_imagen)
-                # Usamos el método recomendado para redimensionar la imagen, con compatibilidad para Pillow >= 10
                 try:
                     resample_method = Image.Resampling.LANCZOS  # Pillow >= 10.0
                 except AttributeError:
@@ -125,7 +158,7 @@ def venta_producto(usuario):
                 img = img.resize((150, 150), resample_method)
                 img_tk = ImageTk.PhotoImage(img)
                 label_img.config(image=img_tk)
-                label_img.image = img_tk  # Guardamos una referencia para no perder la imagen
+                label_img.image = img_tk  # Guardar referencia
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo cargar la imagen: {e}")
         else:
@@ -167,7 +200,7 @@ def venta_producto(usuario):
             id_venta = cursor.lastrowid
 
             # Determinar el tipo de producto para el detalle de la venta
-            tipo_producto = 'libro' if producto in libros else 'revista'
+            tipo_producto = producto['tipo']
             cursor.execute(
                 "INSERT INTO detalle_venta (id_venta, id_producto, tipo_producto, cantidad, precio_unitario) VALUES (%s, %s, %s, %s, %s)",
                 (id_venta, producto['id_producto'], tipo_producto, cantidad, producto['precio'])
@@ -177,7 +210,13 @@ def venta_producto(usuario):
             cursor.execute("UPDATE inventario SET stock = stock - %s WHERE id_producto = %s", (cantidad, producto['id_producto']))
 
             conn.commit()
-            messagebox.showinfo("Venta exitosa", f"Venta registrada por ${total:.2f}")
+            # Mensaje de confirmación que incluye el título del producto, la cantidad y el precio total
+            messagebox.showinfo("Venta exitosa", 
+                f"Venta registrada:\n"
+                f"Producto: {producto['nombre']}\n"
+                f"Cantidad: {cantidad}\n"
+                f"Precio total: ${total:.2f}"
+            )
             venta.destroy()
 
         except ValueError:
@@ -259,3 +298,5 @@ def confirmar_cerrar_sesion(ventana):
 
 # ---------------- INICIO DE LA APLICACIÓN ----------------
 mostrar_login()
+
+
