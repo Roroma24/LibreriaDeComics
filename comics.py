@@ -63,7 +63,7 @@ def ventana_usuario(usuario):
 
     tk.Label(user, text="Bienvenido Usuario", font=("Arial", 14)).pack(pady=10)
 
-    btn_vender = tk.Button(user, text="Vender Producto", width=20, command=lambda: venta_producto(usuario))
+    btn_vender = tk.Button(user, text="Comprar Producto", width=20, command=lambda: venta_producto(usuario))
     btn_logout = tk.Button(user, text="Cerrar Sesión", width=20, command=lambda: confirmar_cerrar_sesion(user))
 
     btn_vender.pack(pady=10)
@@ -111,7 +111,7 @@ def venta_producto(usuario):
     venta.title("Venta de Productos")
     venta.geometry("600x400")
 
-    tk.Label(venta, text=f"Vendedor: {usuario}", font=("Arial", 12)).pack(pady=5)
+    tk.Label(venta, text=f"{usuario}", font=("Arial", 12)).pack(pady=5)
 
     productos_frame = tk.Frame(venta)
     productos_frame.pack()
@@ -189,7 +189,7 @@ def venta_producto(usuario):
             venta.destroy()
 
     # Botón para confirmar venta
-    tk.Button(venta, text="Confirmar Venta", command=confirmar).pack(pady=10)
+    tk.Button(venta, text="Confirmar", command=confirmar).pack(pady=10)
 
     # Botón para cancelar venta
     tk.Button(venta, text="Cancelar", command=cancelar).pack(pady=10)
