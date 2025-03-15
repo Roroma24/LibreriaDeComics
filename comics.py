@@ -1,5 +1,6 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
+from tkinter import ttk
 import mysql.connector
 
 # ---------------- CONEXIÓN A LA BASE DE DATOS ----------------
@@ -8,7 +9,7 @@ def conectar_db():
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="Ror@$2405",  
+            password="Saltamontes71#",  # Cambia si tienes contraseña
             database="sistema_libreria"
         )
         return conn
@@ -28,7 +29,7 @@ def verificar_login():
         user = cursor.fetchone()
 
         if user:
-            root.destroy() 
+            root.destroy()  # Cierra la ventana de login
             if user['rol'] == 'administrador':
                 ventana_admin(user['username'])
             else:
@@ -47,9 +48,11 @@ def ventana_admin(usuario):
 
     btn_vender = tk.Button(admin, text="Vender Producto", width=20, command=lambda: venta_producto(usuario))
     btn_inventario = tk.Button(admin, text="Consultar Inventario", width=20, command=consultar_inventario)
+    btn_logout = tk.Button(admin, text="Cerrar Sesión", width=20, command=lambda: confirmar_cerrar_sesion(admin))
 
     btn_vender.pack(pady=10)
     btn_inventario.pack(pady=10)
+    btn_logout.pack(pady=10)
 
     admin.mainloop()
 
@@ -61,9 +64,45 @@ def ventana_usuario(usuario):
     tk.Label(user, text="Bienvenido Usuario", font=("Arial", 14)).pack(pady=10)
 
     btn_vender = tk.Button(user, text="Vender Producto", width=20, command=lambda: venta_producto(usuario))
+    btn_logout = tk.Button(user, text="Cerrar Sesión", width=20, command=lambda: confirmar_cerrar_sesion(user))
+
     btn_vender.pack(pady=10)
+    btn_logout.pack(pady=10)
 
     user.mainloop()
+
+# ---------------- VOLVER AL LOGIN ----------------
+def confirmar_cerrar_sesion(ventana):
+    respuesta = messagebox.askyesno("Cerrar Sesión", "¿Está seguro que quiere cerrar sesión?")
+    if respuesta:  # Si elige "Sí", cerrar sesión
+        ventana.destroy()
+        mostrar_login()
+
+def volver_al_login(admin):
+    admin.destroy()  # Cierra la ventana actual de administrador
+    mostrar_login()  # Vuelve a mostrar la ventana de login
+
+def mostrar_login():
+    global root, entry_usuario, entry_password
+    root = tk.Tk()
+    root.title("Login Sistema Librería")
+    root.geometry("350x200")
+
+    tk.Label(root, text="Usuario:").pack(pady=5)
+    entry_usuario = tk.Entry(root)
+    entry_usuario.pack()
+
+    tk.Label(root, text="Contraseña:").pack(pady=5)
+    entry_password = tk.Entry(root, show="*")
+    entry_password.pack()
+
+    btn_login = tk.Button(root, text="Iniciar Sesión", command=verificar_login)
+    btn_salir = tk.Button(root, text="Salir", command=root.quit)
+
+    btn_login.pack(pady=10)
+    btn_salir.pack(pady=5)
+
+    root.mainloop()
 
 # ---------------- VENDER PRODUCTO ----------------
 def venta_producto(usuario):
@@ -91,13 +130,21 @@ def venta_producto(usuario):
 
     lista_productos = libros + revistas
 
-    for idx, prod in enumerate(lista_productos):
-        tk.Label(productos_frame, text=f"{idx+1}. {prod['nombre']} - ${prod['precio']:.2f}").pack(anchor='w')
+    # Crear ComboBox para productos
+    productos_nombres = [f"{prod['nombre']} - ${prod['precio']:.2f}" for prod in lista_productos]
+    tk.Label(venta, text="Selecciona el producto:").pack(pady=5)
+    combobox_productos = ttk.Combobox(venta, values=productos_nombres)
+    combobox_productos.pack()
+
+    # Crear ComboBox para seleccionar la cantidad (1-10)
+    tk.Label(venta, text="Selecciona la cantidad:").pack(pady=5)
+    combobox_cantidad = ttk.Combobox(venta, values=[str(i) for i in range(1, 11)])
+    combobox_cantidad.pack()
 
     def confirmar():
         try:
-            seleccion = int(entry_producto.get()) - 1
-            cantidad = int(entry_cantidad.get())
+            seleccion = combobox_productos.current()
+            cantidad = int(combobox_cantidad.get())
 
             if seleccion < 0 or seleccion >= len(lista_productos):
                 messagebox.showerror("Error", "Selección inválida.")
@@ -140,15 +187,16 @@ def venta_producto(usuario):
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    tk.Label(venta, text="Selecciona el número de producto:").pack(pady=5)
-    entry_producto = tk.Entry(venta)
-    entry_producto.pack()
+    def cancelar():
+        respuesta = messagebox.askyesno("Cancelar", "¿Está seguro que quiere cancelar?")
+        if respuesta:
+            venta.destroy()
 
-    tk.Label(venta, text="Cantidad:").pack(pady=5)
-    entry_cantidad = tk.Entry(venta)
-    entry_cantidad.pack()
-
+    # Botón para confirmar venta
     tk.Button(venta, text="Confirmar Venta", command=confirmar).pack(pady=10)
+
+    # Botón para cancelar venta
+    tk.Button(venta, text="Cancelar", command=cancelar).pack(pady=10)
 
     venta.mainloop()
     conn.close()
@@ -186,19 +234,4 @@ def consultar_inventario():
     conn.close()
 
 # ---------------- INICIO DE SESIÓN ----------------
-root = tk.Tk()
-root.title("Login Sistema Librería")
-root.geometry("350x200")
-
-tk.Label(root, text="Usuario:").pack(pady=5)
-entry_usuario = tk.Entry(root)
-entry_usuario.pack()
-
-tk.Label(root, text="Contraseña:").pack(pady=5)
-entry_password = tk.Entry(root, show="*")
-entry_password.pack()
-
-btn_login = tk.Button(root, text="Iniciar Sesión", command=verificar_login)
-btn_login.pack(pady=10)
-
-root.mainloop()
+mostrar_login()
