@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk, filedialog
+from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 import mysql.connector
 
@@ -9,7 +9,7 @@ def conectar_db():
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="Ror@$2405",  # Ajusta según tu configuración
+            password="Ror@$2405",  # Se ajusta según la configuración
             database="sistema_libreria"
         )
         return conn
@@ -30,10 +30,7 @@ def verificar_login():
 
         if user:
             root.destroy()  # Cierra la ventana de login
-            if user['rol'] == 'administrador':
-                ventana_admin(user['username'])
-            else:
-                ventana_usuario(user['username'])
+            ventana_principal(user['username'])
         else:
             messagebox.showerror("Login fallido", "Usuario o contraseña incorrectos.")
         conn.close()
@@ -57,22 +54,28 @@ def mostrar_login():
 
     root.mainloop()
 
-# ---------------- VENTANA DE VENTA/COMPRA (CON INFO, IMAGEN, EDITORIAL) ----------------
+# ---------------- VENTANA DE VENTA/COMPRA ----------------
 def venta_producto(usuario):
     conn = conectar_db()
     if not conn:
         return
     cursor = conn.cursor(dictionary=True)
 
-    # Creamos una ventana secundaria para la venta/compra
     venta = tk.Toplevel()
     venta.title("Venta de Productos")
     venta.geometry("600x550")
 
     tk.Label(venta, text=f"Usuario: {usuario}", font=("Arial", 12)).pack(pady=5)
 
-    # Consultar libros (incluyendo ruta de la imagen, otros detalles y editorial)
-    cursor.execute("""
+    cursor.execute("SELECT id_cliente, nombre FROM cliente")
+    clientes = cursor.fetchall()
+    clientes_nombres = [f"{c['nombre']}" for c in clientes]
+
+    tk.Label(venta, text="Selecciona el cliente:").pack(pady=5)
+    combobox_cliente = ttk.Combobox(venta, values=clientes_nombres, width=50)
+    combobox_cliente.pack(pady=5)
+
+    cursor.execute("""  
         SELECT producto.id_producto, 
                libro.titulo AS nombre, 
                libro.precio, 
@@ -87,8 +90,7 @@ def venta_producto(usuario):
     """)
     libros = cursor.fetchall()
 
-    # Consultar revistas (incluyendo ruta de la imagen, otros detalles y editorial)
-    cursor.execute("""
+    cursor.execute("""  
         SELECT producto.id_producto, 
                revista.titulo AS nombre, 
                revista.precio, 
@@ -103,7 +105,6 @@ def venta_producto(usuario):
     """)
     revistas = cursor.fetchall()
 
-    # Combinar los resultados
     lista_productos = libros + revistas
     productos_nombres = [f"{p['nombre']} - ${p['precio']:.2f}" for p in lista_productos]
 
@@ -115,11 +116,9 @@ def venta_producto(usuario):
     combobox_cantidad = ttk.Combobox(venta, values=[str(i) for i in range(1, 11)], width=10)
     combobox_cantidad.pack(pady=5)
 
-    # Label para mostrar la imagen del producto seleccionado
     label_img = tk.Label(venta)
     label_img.pack(pady=10)
 
-    # Label para mostrar la información adicional del producto
     label_info = tk.Label(venta, text="", justify="left", font=("Arial", 10))
     label_info.pack(pady=5)
 
@@ -130,7 +129,7 @@ def venta_producto(usuario):
 
         producto = lista_productos[indice]
         ruta_imagen = producto.get("imagen", "")
-        # Actualizar la información extra del producto, incluyendo la editorial
+
         if producto["tipo"] == "libro":
             info_text = (
                 f"ISBN: {producto.get('ISBN', 'N/D')}\n"
@@ -147,18 +146,17 @@ def venta_producto(usuario):
             info_text = ""
         label_info.config(text=info_text)
 
-        # Mostrar la imagen si la ruta existe
         if ruta_imagen:
             try:
                 img = Image.open(ruta_imagen)
                 try:
-                    resample_method = Image.Resampling.LANCZOS  # Pillow >= 10.0
+                    resample_method = Image.Resampling.LANCZOS
                 except AttributeError:
-                    resample_method = Image.LANCZOS  # Versiones anteriores
+                    resample_method = Image.LANCZOS
                 img = img.resize((150, 150), resample_method)
                 img_tk = ImageTk.PhotoImage(img)
                 label_img.config(image=img_tk)
-                label_img.image = img_tk  # Guardar referencia
+                label_img.image = img_tk
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo cargar la imagen: {e}")
         else:
@@ -181,7 +179,6 @@ def venta_producto(usuario):
 
             producto = lista_productos[indice]
 
-            # Verificar el stock del producto
             cursor.execute("SELECT stock FROM inventario WHERE id_producto = %s", (producto['id_producto'],))
             stock_registro = cursor.fetchone()
             if not stock_registro:
@@ -195,23 +192,30 @@ def venta_producto(usuario):
 
             total = cantidad * producto['precio']
 
-            # Insertar la venta
-            cursor.execute("INSERT INTO venta (fecha, monto_total, id_cliente) VALUES (NOW(), %s, 1)", (total,))
+            # Seleccionar cliente
+            cliente_seleccionado = combobox_cliente.get()
+            cursor.execute("SELECT id_cliente FROM cliente WHERE nombre = %s", (cliente_seleccionado,))
+            cliente = cursor.fetchone()
+            if not cliente:
+                messagebox.showerror("Error", "No se encontró el cliente seleccionado.")
+                return
+
+            id_cliente = cliente['id_cliente']
+
+            cursor.execute("INSERT INTO venta (fecha, monto_total, id_cliente) VALUES (NOW(), %s, %s)", (total, id_cliente))
             id_venta = cursor.lastrowid
 
-            # Determinar el tipo de producto para el detalle de la venta
             tipo_producto = producto['tipo']
             cursor.execute(
                 "INSERT INTO detalle_venta (id_venta, id_producto, tipo_producto, cantidad, precio_unitario) VALUES (%s, %s, %s, %s, %s)",
                 (id_venta, producto['id_producto'], tipo_producto, cantidad, producto['precio'])
             )
 
-            # Actualizar el stock en el inventario
             cursor.execute("UPDATE inventario SET stock = stock - %s WHERE id_producto = %s", (cantidad, producto['id_producto']))
 
             conn.commit()
-            # Mensaje de confirmación que incluye el título del producto, la cantidad y el precio total
-            messagebox.showinfo("Venta exitosa", 
+
+            messagebox.showinfo("Venta exitosa",
                 f"Venta registrada:\n"
                 f"Producto: {producto['nombre']}\n"
                 f"Cantidad: {cantidad}\n"
@@ -228,75 +232,105 @@ def venta_producto(usuario):
         if messagebox.askyesno("Cancelar", "¿Deseas cancelar la venta?"):
             venta.destroy()
 
-    tk.Button(venta, text="Confirmar", command=confirmar).pack(pady=10)
-    tk.Button(venta, text="Cancelar", command=cancelar).pack(pady=10)
+    tk.Button(venta, text="Confirmar", command=confirmar).pack(pady=5)
+    tk.Button(venta, text="Cancelar", command=cancelar).pack(pady=5)
 
     venta.mainloop()
-    conn.close()
 
-# ---------------- CONSULTAR INVENTARIO ----------------
-def consultar_inventario():
+# ---------------- FUNCIONES PARA VENTAS TOP Y CLIENTES TOP ----------------
+def mostrar_top_ventas():
     conn = conectar_db()
     if not conn:
         return
     cursor = conn.cursor(dictionary=True)
-
-    inventario = tk.Toplevel()
-    inventario.title("Inventario Actual")
-    inventario.geometry("500x400")
-
-    tk.Label(inventario, text="Inventario de Productos", font=("Arial", 14)).pack(pady=10)
-
     cursor.execute("""
-        SELECT producto.id_producto,
-               COALESCE(libro.titulo, revista.titulo) AS nombre,
-               COALESCE(libro.precio, revista.precio) AS precio,
-               inventario.stock
-        FROM producto
-        LEFT JOIN libro ON producto.id_libro = libro.id_libro
-        LEFT JOIN revista ON producto.id_revista = revista.id_revista
-        JOIN inventario ON producto.id_producto = inventario.id_producto
+        SELECT v.id_venta, v.fecha, SUM(dv.cantidad * dv.precio_unitario) AS monto_total
+        FROM venta v
+        JOIN detalle_venta dv ON v.id_venta = dv.id_venta
+        GROUP BY v.id_venta
+        ORDER BY monto_total DESC
+        LIMIT 10
     """)
-    items = cursor.fetchall()
-
-    for item in items:
-        tk.Label(inventario, text=f"{item['nombre']} | Precio: ${item['precio']:.2f} | Stock: {item['stock']}").pack(anchor="w")
-
-    inventario.mainloop()
+    ventas_top = cursor.fetchall()
     conn.close()
 
-# ---------------- PANELES PRINCIPALES ----------------
-def ventana_admin(usuario):
-    admin = tk.Tk()
-    admin.title(f"Panel Administrador - {usuario}")
-    admin.geometry("500x400")
+    ventana_top_ventas = tk.Toplevel()
+    ventana_top_ventas.title("Top 10 Ventas")
+    ventana_top_ventas.geometry("600x400")
 
-    tk.Label(admin, text="Bienvenido Administrador", font=("Arial", 14)).pack(pady=10)
+    for idx, venta in enumerate(ventas_top, start=1):
+        tk.Label(ventana_top_ventas, text=f"Venta {idx}: {venta['fecha']} - Total: ${venta['monto_total']:.2f}").pack(pady=5)
 
-    tk.Button(admin, text="Vender Producto", width=20, command=lambda: venta_producto(usuario)).pack(pady=10)
-    tk.Button(admin, text="Consultar Inventario", width=20, command=consultar_inventario).pack(pady=10)
-    tk.Button(admin, text="Cerrar Sesión", width=20, command=lambda: confirmar_cerrar_sesion(admin)).pack(pady=10)
+def mostrar_top_clientes():
+    conn = conectar_db()
+    if not conn:
+        return
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT c.id_cliente, c.nombre, SUM(dv.cantidad * dv.precio_unitario) AS monto_total
+        FROM cliente c
+        JOIN venta v ON c.id_cliente = v.id_cliente
+        JOIN detalle_venta dv ON v.id_venta = dv.id_venta
+        GROUP BY c.id_cliente
+        ORDER BY monto_total DESC
+        LIMIT 10
+    """)
+    clientes_top = cursor.fetchall()
+    conn.close()
 
-    admin.mainloop()
+    ventana_top_clientes = tk.Toplevel()
+    ventana_top_clientes.title("Top 10 Clientes")
+    ventana_top_clientes.geometry("600x400")
 
-def ventana_usuario(usuario):
-    user = tk.Tk()
-    user.title(f"Panel Usuario - {usuario}")
-    user.geometry("400x300")
+    for idx, cliente in enumerate(clientes_top, start=1):
+        tk.Label(ventana_top_clientes, text=f"Cliente {idx}: {cliente['nombre']} - Total Comprado: ${cliente['monto_total']:.2f}").pack(pady=5)
 
-    tk.Label(user, text="Bienvenido Usuario", font=("Arial", 14)).pack(pady=10)
+def mostrar_inventario():
+    conn = conectar_db()
+    if not conn:
+        return
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT p.id_producto, 
+               COALESCE(l.titulo, r.titulo) AS nombre_producto, 
+               i.stock, 
+               i.tipo_producto
+        FROM inventario i
+        JOIN producto p ON i.id_producto = p.id_producto
+        LEFT JOIN libro l ON p.id_libro = l.id_libro
+        LEFT JOIN revista r ON p.id_revista = r.id_revista
+    """)
+    productos = cursor.fetchall()
+    conn.close()
 
-    tk.Button(user, text="Comprar Producto", width=20, command=lambda: venta_producto(usuario)).pack(pady=10)
-    tk.Button(user, text="Cerrar Sesión", width=20, command=lambda: confirmar_cerrar_sesion(user)).pack(pady=10)
+    ventana_inventario = tk.Toplevel()
+    ventana_inventario.title("Inventario")
+    ventana_inventario.geometry("700x500")
 
-    user.mainloop()
+    for producto in productos:
+        tk.Label(ventana_inventario, text=f"{producto['nombre_producto']} - Stock: {producto['stock']} - Tipo: {producto['tipo_producto']}").pack(pady=5)
 
-def confirmar_cerrar_sesion(ventana):
-    if messagebox.askyesno("Cerrar Sesión", "¿Desea cerrar sesión?"):
-        ventana.destroy()
-        mostrar_login()
+# ---------------- VENTANA PRINCIPAL ----------------
+def ventana_principal(usuario):
+    ventana = tk.Tk()
+    ventana.title("Sistema de Librería")
+    ventana.geometry("600x500")
 
-# ---------------- INICIO DE LA APLICACIÓN ----------------
+    tk.Label(ventana, text=f"Bienvenido, {usuario}", font=("Arial", 12)).pack(pady=10)
+
+    tk.Button(ventana, text="Venta de productos", command=lambda: venta_producto(usuario)).pack(pady=10)
+    tk.Button(ventana, text="Top de ventas", command=mostrar_top_ventas).pack(pady=10)
+    tk.Button(ventana, text="Top de clientes", command=mostrar_top_clientes).pack(pady=10)
+    tk.Button(ventana, text="Inventario", command=mostrar_inventario).pack(pady=10)
+
+    def cerrar_sesion():
+        if messagebox.askyesno("Cerrar sesión", "¿Estás seguro de que deseas cerrar sesión?"):
+            ventana.destroy()
+            mostrar_login()
+
+    tk.Button(ventana, text="Cerrar sesión", command=cerrar_sesion).pack(pady=10)
+
+    ventana.mainloop()
+
+# Mostrar ventana de login
 mostrar_login()
-
-
